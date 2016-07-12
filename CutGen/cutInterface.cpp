@@ -26,6 +26,20 @@ int SeparateECCbyHeuristic( void* cutGen, LpSolution* sol, CutList* cuts, int ma
    return 0;
 }
 
+int SeparateOECbyHeuristic( void* cutGen, LpSolution* sol, CutList* cuts, int maxCuts,
+      ProblemType prob, int minSetSize )
+{
+   CutGenerator* cutGenObj = (CutGenerator*) cutGen;
+   cutGenObj->setProbType( prob );
+   if( ! cutGenObj->isExtCapCutValid() )
+      return 1;
+   cutGenObj->setLpSolution( sol );
+   cutGenObj->setCutBatch( maxCuts );
+   cutGenObj->setMinSetSize( minSetSize );
+   cutGenObj->extOECGenByHeur( cuts );
+   return 0;
+}
+
 int SeparateExtCyElimByHeur( void* cutGen, LpSolution* sol, CutList* cuts, int maxCuts,
       ProblemType prob )
 {

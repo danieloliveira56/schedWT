@@ -73,16 +73,20 @@ public:
    // generate Extended Capacity cuts (ECCs) by heuristic
    void extCapCutGenByHeur( CutList* cuts );
 
-   // generate a single ECC from a set of vertices
+   // generate a single ECC from a set of vertices and r = a/b multiplier
    bool genSingleECCCut(CutList* cuts, int num, int den, int subtr,
          int *SetList, int SetListSize, double minViolation);
 
    // generate a single Triclique Cut from a set of 3 vertices
    bool genSingleTriCliqueCut( CutList* cuts, int S_i, int S_j, int S_k, double minViolation );
    
-   // generate a single Llique Cut from the set of x i,j,d indexs
+   // generate a single Generic Clique Cut from the set of x i,j,d indexs
    bool genGenericCliqueCut( CutList* cuts, std::vector<int> x_i, std::vector<int> x_j, std::vector<int> x_d, double minViolation );
 
+   // generate Overload Elimination Cuts (OECs) by heuristic
+   void extOECGenByHeur( CutList* cuts );   
+
+   // generate a single ECC from a set of vertices and time t
    bool genSingleOECCut( CutList* cuts, int t, int m, 								 
       int *SetList, int SetListSize, double minViolation );
 
@@ -98,7 +102,6 @@ private:
    int eccceil(long long num, int den );
 
    double eccfrac_s(long long num, int den, double s );
-
 
    /** EXTENDED CYCLE ELIMINATION CUT ROUTINES **/
 

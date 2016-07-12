@@ -247,6 +247,10 @@ int SeparateECCbyHeuristic( void* cutGen, LpSolution* sol, CutList* cuts,
 int SeparateExtCyElimByHeur( void* cutGen, LpSolution* sol, CutList* cuts,
       int maxCuts, ProblemType prob );
 
+int SeparateOECbyHeuristic( void* cutGen, LpSolution* sol, CutList* cuts,
+      int maxCuts, ProblemType prob, int minSetSize );
+
+
 void ClearCutList( CutList* list );
 
 void ResetCut( Cut* cut );

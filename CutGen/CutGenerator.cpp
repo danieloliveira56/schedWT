@@ -3,7 +3,15 @@
 #include "roundEccSep.h"
 #include "cycleElimSep.h"
 #include<vector>
+#include<string>
 #include <algorithm>    // std::sort
+
+
+#include "OECCut.h"
+#include "OECSet.h"
+//To be replaced
+#include "OECInstance.h"
+#include "OECSolution.h"
 
 #ifdef _WIN32
 #include <hash_map>
@@ -451,8 +459,8 @@ void CutGenerator::extCapCutGenByHeur( CutList* cuts )
       int j = solution->arcsCap[k].j;
       adjCapArcs[i].push_back( k );
       adjCapArcs[j].push_back( k );
-      //fprintf( stderr, "x(%d,%d,%d) = %lf\n", i, j, solution->arcsCap[k].d,
-      //      solution->arcsCap[k].value );
+      //fprintf( stdout, "x(%d,%d,%d) = %lf\n", i, j, solution->arcsCap[k].d,
+        //    solution->arcsCap[k].value );
    }
 
    // Created an empty set of sets
@@ -555,9 +563,9 @@ void CutGenerator::extCapCutGenByHeur( CutList* cuts )
 			{				   
 				double distancia = 0;
 
-				for (int i=0;i<populacao_indices_S.size()-1;i++) 
-				{
-					for (int j=i+1;j<populacao_indices_S.size();j++) 
+				for (int i = 0; i < (int)populacao_indices_S.size()-1; i++) 
+ 				{
+					for (int j = i+1; j < (int)populacao_indices_S.size();j++) 
 					{
 						nS++;
 						int a1 = populacao_a[i];
@@ -568,7 +576,7 @@ void CutGenerator::extCapCutGenByHeur( CutList* cuts )
 						double dif_r = a1/(double)b1- a2/(double)b2;
 
 						distancia += fabs(dif_r)*2;
-						for (int k = 0;k<populacao_indices_S[i].size();k++) 
+						for (int k = 0; k < (int)populacao_indices_S[i].size(); k++) 
 						{			
 							if (populacao_indices_S[i][k] != populacao_indices_S[j][k]) 
 							{
@@ -838,9 +846,9 @@ void CutGenerator::extCapCutGenByHeur( CutList* cuts )
 
 	if (populacao_indices_S.size() > 2)
 	{
-		for (int i=0;i<populacao_indices_S.size()-1;i++) 
+		for (int i = 0; i < (int)populacao_indices_S.size()-1; i++) 
 		{
-			for (int j=i+1;j<populacao_indices_S.size();j++) 
+			for (int j= i+1; j< (int)populacao_indices_S.size(); j++) 
 			{
 				nS++;
 				int a1 = populacao_a[i];
@@ -851,7 +859,7 @@ void CutGenerator::extCapCutGenByHeur( CutList* cuts )
 				double dif_r = a1/(double)b1- a2/(double)b2;
 
 				distancia += fabs(dif_r)*2;
-				for (int k = 0;k<populacao_indices_S[i].size();k++) 
+				for (int k = 0; k < (int)populacao_indices_S[i].size(); k++) 
 				{			
 					if (populacao_indices_S[i][k] != populacao_indices_S[j][k]) 
 					{
@@ -1019,7 +1027,6 @@ double CutGenerator::eccfrac(long long num, int den )
          return (double)num/den-div+1;
    }
 }
-
 
 int CutGenerator::eccceil(long long num, int den )
 {
@@ -1457,12 +1464,12 @@ bool CutGenerator::genSingleTriCliqueCut( CutList* cuts, int S_i, int S_j, int S
 	std::vector<std::vector<Arco> > CHAIN;
 	bool newChain = true;
 
-	for (int ii = 0; ii < V.size(); ii++)
+	for (int ii = 0; ii < (int)V.size(); ii++)
 	{
 		newChain = true;
-		for (int jj = 0; jj < CHAIN.size(); jj++)
+		for (int jj = 0; jj < (int)CHAIN.size(); jj++)
 		{
-			for (int kk = 0; kk < CHAIN[jj].size(); kk++)
+			for (int kk = 0; kk < (int)CHAIN[jj].size(); kk++)
 			{
 				if (V[ii].Compativel(CHAIN[jj][kk]))
 				{
@@ -1633,13 +1640,12 @@ bool CutGenerator::genSingleOECCut( CutList* cuts, int t, int m,
 		auxdata->incapcoeff[d] = 2.0;
 
 	//Z
-	//int tz1 = demand - t;
-	//int tz2 = instance_.capacity - demand + 2*t - 1;
-	//int tz = tz1 > tz2 ? tz1 : tz2; 
-	//for (d = tz; d < instance_.capacity; d++ )
-	//	auxdata->outcapcoeff[d] = -1.0;
+	int tz1 = demand - t;
+	int tz2 = instance_.capacity - demand + 2*t - 1;
+	int tz = tz1 > tz2 ? tz1 : tz2; 
+	for (d = tz; d < instance_.capacity; d++ )
+		auxdata->outcapcoeff[d] = -1.0;
 	
-
 	// fill the cut fields
 	cuts->cuts[cuts->numCuts].data = auxdata;
 	cuts->cuts[cuts->numCuts].sense = '>';
@@ -1804,4 +1810,868 @@ bool CutGenerator::genSingleECCCut_s( CutList* cuts, int num, int den, int s_num
 		delete auxdata;
 		return false;
    }
+}
+
+//OEC Separation
+
+const bool elimina_por_semelhanca_cardinalidade = false;
+const double cardinalidade_relevante = 0.8;
+
+const int tamanhoPopulacao = 20;
+const int totalIter = 100;
+const double percFilho = 1;
+const int TcountRelevante = 20;
+const int limiteCortes = 50;	
+const double gapRelevante = -0.05000001;
+
+const bool busca_local_modificada = false;
+const int k_busca_local_modificada = 200;
+
+const bool logDetalhado = false;
+const bool logDetalhadoAssinaturas = false;
+const bool logDetalhadoMinhoca = false;	
+const bool logEfeitoCrossover = false;
+
+const bool crossoverConexo = true;
+const bool buscaConexa = true;
+
+const int tamanhoMin = 2; //tamanho minimo que o conjunto S pode ter
+
+using namespace std;
+
+
+vector<Individual> inicializaPopulacao(int tamanhoPopulacao, Instance& inst, Solution& sol);
+
+void buscaLocalOEC(Instance& inst, Individual indiv, Solution& sol, vector<Individual> &violados, 
+			vector<vector< bool > >& conjuntoSbuscados, int level, int tabu, double previousBestGap);
+
+
+Individual * crossover (Individual &pai, Individual &mae, Instance& inst, Solution& sol, vector<vector<bool> > conjuntoSbuscados);
+
+bool conjuntoSbuscado(vector<vector<bool> > &conjuntoSbuscados, vector<bool> &conjuntoSbool, bool registrar);
+
+bool insertUniqueIndividual(vector<Individual> &population, Individual &newIndividual);
+
+bool verifica_novo_Individual(vector<Individual> &gerados, string &impressaoS); 
+
+bool verifica_novo_Individual_completo(vector<Individual> &gerados, Individual &novo_Individual);
+
+void CalculateOEC(int pTotal, vector<double>& Y_vec, vector<double>& Z_vec, Solution& sol, Instance&  inst,
+				int& t, double& lhs, double& rhs);
+
+string imprimeS(vector<int> S);
+
+void selecionaPopulacao(vector<Individual> &populacao, int tamanhoLimite);
+
+double calculaDiversidade(vector<Individual> &populacao, int nIndividuals = -1);
+
+void CutGenerator::extOECGenByHeur( CutList* cuts )
+{	
+	int i;
+	
+	bool erro = false;
+	Instance inst(instance_);
+	Solution sol(inst, *solution);
+
+	if (erro)
+		return;
+	
+	double diversidade = 0;
+	double diversidadeAnterior = 0;
+	int quantidadeCrossoversMax = int(ceil(tamanhoPopulacao*percFilho));
+	
+	vector<vector<bool> > conjuntoSbuscados;
+	
+	vector<Individual> violados;
+		
+	vector<Individual> populacao = inicializaPopulacao(tamanhoPopulacao, inst, sol);   //inicializaPopulacao
+
+	for (i=0; i < (int)populacao.size(); i++)
+	{
+		populacao[i].S.calculaYZ(sol);
+		populacao[i].calculateOEC(sol, inst);
+	}
+
+	//busca local em todos os membros da populacao gerada
+	for (i=0; i < (int)populacao.size(); i++) {				
+		buscaLocalOEC(inst, populacao[i], sol, violados, conjuntoSbuscados, 0, 0, 1000);
+	}
+	
+	int totalCortesPop = violados.size();
+
+	int iter = 1;
+
+	while  (iter<=totalIter) // && (violados.size() < 10*limiteCortes) ) 
+	{
+		int quantidadeCrossovers = (quantidadeCrossoversMax > (int)populacao.size()) ? (populacao.size()) : (quantidadeCrossoversMax);
+
+		//crossover com busca local
+		if (populacao.size()>1) {
+			int qtdDup = 0;
+			int qtdNovo = 0;
+			for (i=0;i<quantidadeCrossovers;i++) 
+			{
+				//seleciona aleatoriamente um pai e uma mae para Crossover
+				int i_pai = std::rand() % populacao.size();
+				int i_mae = std::rand() % populacao.size();
+				while ((i_mae == i_pai) || (populacao[i_pai].assinatura == populacao[i_mae].assinatura)) 
+				{
+					i_pai = std::rand() % populacao.size();
+					i_mae = std::rand() % populacao.size();				
+				}
+	
+				Individual * filho = crossover(populacao[i_pai], populacao[i_mae], inst, sol, conjuntoSbuscados);
+
+				if (!conjuntoSbuscado(conjuntoSbuscados, filho->S.pertenceS, false))
+				{
+					qtdNovo++;											
+					buscaLocalOEC(inst, *filho, sol, violados, conjuntoSbuscados, 0, 0, 1000);
+					populacao.push_back(*filho);						
+				} 
+				else 
+				{
+					qtdDup++;
+					i--;
+					if (qtdDup == quantidadeCrossovers*2)
+						break;
+				}
+			}
+		}
+
+		//corta os elementos da populacao abaixo de um dado limite
+		selecionaPopulacao(populacao, tamanhoPopulacao);
+
+		diversidadeAnterior = diversidade;
+		diversidade = calculaDiversidade(populacao);
+		
+		std::sort (populacao.begin(), populacao.end());
+		iter++;
+	}
+
+	//passa o sarrafo nos violados
+	if ((int)violados.size() > limiteCortes)	
+	{
+		std::sort (violados.begin(), violados.end());
+		if ( (elimina_por_semelhanca_cardinalidade) && (violados.size() > limiteCortes) ) 
+		{
+			for (int i = 0; i < (int)violados.size()-1; i++) 
+			{
+				if (i == limiteCortes) break;
+				int card_uniao = 0, card_intersec = 0;
+				for (int j = i+1; j < (int)violados.size() ; j++) 
+				{
+					if (j == limiteCortes) break;
+					for (int k = 1; k <= inst.n; k++) 
+					{
+						if ( violados[i].S.pertenceS[k] || violados[j].S.pertenceS[k] )	card_uniao++;
+						if ( violados[i].S.pertenceS[k] && violados[j].S.pertenceS[k])	card_intersec++;
+					}					
+					if ( card_intersec > card_uniao*cardinalidade_relevante ) 
+					{						
+						violados.erase (violados.begin()+j);
+						j--;
+						if (violados.size() <= limiteCortes) break; //finaliza a busca por semelhantes				 			
+					}
+				}
+				if (violados.size() <= limiteCortes) break;
+				if (i == limiteCortes) break;
+			}
+		}
+		if (violados.size() > limiteCortes) violados.erase (violados.begin()+limiteCortes, violados.end());		
+	}
+
+	diversidade = 0;
+	
+	if (violados.size() > 0) diversidade = calculaDiversidade(violados);
+
+	for (int i = 0; i < (int)violados.size(); i++) {
+		int tCorte = violados[i].t;
+		int setSize = violados[i].S.elementos.size();
+
+		std::vector<int> setDesc(setSize);
+		for (int k = 0; k < setSize; k++) setDesc[k] = violados[i].S.elementos[k];
+		
+		genSingleOECCut(cuts, tCorte, inst.m, &setDesc[0], setSize, 0.05);
+	}
+}
+
+vector<Individual> inicializaPopulacao(int tamanhoPopulacao, Instance& inst, Solution& sol) 
+{	
+	int n = inst.n; 
+	vector <Individual> populacao;
+	
+	//C = {(j, \bar{C}_j)| j \in J}, where \bar{C}_j is the average completion time
+	vector<InteDouble> C; //(index, completion time) of jobs
+
+	//populate C - begin
+	for (int i = 0; i < n; i++)
+	{
+		C.push_back(InteDouble(i+1,0));
+	}
+
+	for (int ii = 0; ii < (int)sol.arcs.size(); ii++)
+	{
+		int i = sol.arcs[ii].i;
+		int j = sol.arcs[ii].j;
+		int t = sol.arcs[ii].t;
+		double valor = sol.arcs[ii].value;
+
+		if (i>0)
+			C[i-1] += t*valor;
+	}
+	//populate C - end
+
+	//sorts C in ascending order of completion time
+	//C[0][0] is the index of the first job to complete
+	sort(C.begin(),C.end());
+
+	for (int k = 1; k <= n; k++)
+	{
+		for (int j = 0; j < k; j++)
+		{
+			int jth_job = C[j].valor_int;
+
+			vector<bool> kSmallest(n+1);
+#ifndef REVERSE_OEC
+			for (int i = 0; i < k; i++)	
+			{
+				kSmallest[C[i].valor_int] = true;
+			}
+#else			
+			for (int i = 1; i <= k; i++)	
+			{
+				kSmallest[C[C.size()-i].valor_int] = true;
+			}
+#endif
+
+			//performs Breadth-First-Search among the kSmallest jobs to find the connected components
+			int contDescobertos;
+			int no;
+			vector<int> fila;
+			vector<bool> descoberto;
+			descoberto.resize(n+1);
+			descoberto[jth_job] = true;
+			contDescobertos = 1;
+			fila.push_back(jth_job);
+
+			while ( fila.size()>0 ) {
+				//le e deleta o primeiro elemento da fila
+				no = fila[0];
+				fila.erase( fila.begin() );
+				for (int i = 1; i <= sol.n; i++) 
+				{
+					if ( (sol.adjMatrix[no][i] == 1) && (!descoberto[i]) && (kSmallest[i]) ) 
+					{
+						descoberto[i] = true;
+						fila.push_back(i);
+					}
+				}
+			}
+
+			//vetor de elementos S do Individual sendo criado
+			vector<int> elementosIndividual;
+
+			//adiciona elementos que tenham sido encontrados no grafo de suporte
+			//ou seja, elementos conexos no grafo de suporte com raiz no tarefa da vez, j
+			for (int i = 1; i <= n; i++) 
+			{
+				if (descoberto[i])
+				{
+					elementosIndividual.push_back(i);
+				}
+			}
+
+			//calculates the Cut, based on S
+			Individual indiv(inst,elementosIndividual);
+			indiv.S.calculaYZ(sol);
+			indiv.calculateOEC(sol, inst);
+		
+			//checks if set S is not already present in the population and appends the individual to the 
+			insertUniqueIndividual(populacao, indiv);
+		}
+	}
+
+	return populacao;
+}
+
+void elimina_desconexidade_S(conjuntoS &S, Solution& sol, int lider) 
+{
+
+	if (S.tamanho == 1) {return;}
+	int p = 0;
+
+	vector <bool> assignado(S.tamanhoMax+1);
+	vector <int> minhoca;
+
+	for (int i = 0; i < S.tamanhoMax+1; i++)
+	{
+		assignado[i] = false;
+	}
+
+	if (lider==-1) {
+		lider = S.elementos[std::rand() % S.elementos.size()];
+	}
+
+	//realiza Breadth-First-Search para encontrar os elementos conexos e eliminar os desconexos depois
+	vector<bool> descoberto;
+	vector<int> fila;
+	int contDescobertos;
+	int i;
+	int no;
+	descoberto.resize(sol.n+1);
+
+	descoberto[lider] = true;
+	contDescobertos = 1;
+	fila.push_back(lider);
+
+	while ( fila.size()>0 ) {
+		//le e deleta o primeiro elemento da fila
+		no = fila[0];
+		fila.erase( fila.begin() );
+		for (i = 1; i <= sol.n; i++) {
+			if ( (sol.adjMatrix[no][i] == 1) && (!descoberto[i]) ) {
+				descoberto[i] = true;
+				fila.push_back(i);
+			}
+		}
+	}
+
+	for (int i = S.elementos.size()-1; i > -1; i--)	{
+		if (!descoberto[S.elementos[i]]) {
+			S.excluiElemento(S.elementos[i]);
+		}
+	}
+}
+
+//Seleciona Populacao
+void selecionaPopulacao(vector<Individual> &populacao, int tamanhoLimite)
+{
+	for (int i = 0; i < (int)populacao.size(); i++)
+	{
+		sort( populacao[i].S.elementos.begin(), populacao[i].S.elementos.end() );
+	}
+	sort (populacao.begin(), populacao.end(), lexicographical_compareInd);
+
+	for (int i= (int)populacao.size()-1; i > 0; i--)
+	{
+		if ( populacao[i].equalS( populacao[i-1]) ) 
+		{
+			if (populacao[i].gap() > populacao[i-1].gap() )
+			{
+				populacao.erase (populacao.begin()+i);
+			}
+			else
+			{
+				populacao.erase (populacao.begin()+i-1);
+			}
+		}
+	}
+
+	if ((int)populacao.size() > tamanhoLimite) {
+		sort(populacao.begin(), populacao.end());
+		populacao.erase(populacao.begin()+tamanhoLimite,populacao.end());
+	}	
+}
+
+// Crossover
+Individual * crossover (Individual &pai, Individual &mae, Instance& inst, Solution& sol, vector<vector<bool> > conjuntoSbuscados)
+{
+
+	conjuntoS * S = new conjuntoS(inst);
+
+	int i, raiz, no, destino;
+	vector<int> fila;
+	vector<int> precedente;
+	vector<bool> descoberto;
+	int contDescobertos;
+
+	bool caminhoEncontrado = false;
+
+	for (int i=0;i<inst.n;i++) {  //roda todos os elementos
+		if (pai.S.pertenceS[i] && mae.S.pertenceS[i]) {  //verifica se o elemento pertence ao pai E a mae
+			S->incluiElemento(i); //inclui o elemento em S
+		} 
+	}
+
+	if (S->tamanho==0) { //verifica se os pais tem intersecao vazia
+		//escolhe o menor caminho entre dois elementos aleatorios dos pais para incluir no filho
+		precedente.resize(sol.n+1);
+		descoberto.resize(sol.n+1);
+
+		i = std::rand() % pai.S.elementos.size();
+		raiz = pai.S.elementos[i];
+
+		descoberto[raiz] = true;
+		contDescobertos = 1;
+		fila.push_back(raiz);
+
+		while ( (fila.size()>0) && (!caminhoEncontrado) ) {
+			//le e deleta o primeiro elemento da fila
+			no = fila[0];
+			fila.erase( fila.begin() ); 
+			for (i = 1; i <= sol.n; i++) {
+				if ( (sol.adjMatrix[no][i] == 1) && (!descoberto[i]) && (!caminhoEncontrado) ) {
+					descoberto[i] = true;
+					fila.push_back(i);
+					precedente[i] = no;
+					if (mae.S.pertenceS[i]) {
+						caminhoEncontrado = true;
+						destino = i;
+					}
+				}
+			}
+		}
+
+		//refaz o caminho do elemento da mae para o do pai,
+		// incluindo os elementos visitados no filho
+		i = destino;
+		S->incluiElemento(i);
+		while (precedente[i] != 0) {
+			i = precedente[i];
+			S->incluiElemento(i);
+		}
+	}
+
+	//seleciona um elemento de S inicial que pertença a ambos os parentes
+	int lider = S->elementos[std::rand() % (int)S->elementos.size()];
+
+	for (int i=0;i<inst.n;i++) { //roda todos os elementos
+		if (!S->pertenceS[i] ) { //verifica se o elemento ja nao pertence ao conjunto S
+			if (pai.S.pertenceS[i] != mae.S.pertenceS[i]) { //verifica se o elemento pertence ao pai OU a mae
+				if (std::rand() % 2 == 0) S->incluiElemento(i); //inclui o elemento em S com 50% de chance
+			}
+		}
+	}
+
+	if (crossoverConexo) elimina_desconexidade_S(*S, sol, lider);
+
+	Individual * filho = new Individual(inst, S->elementos);
+	filho->S.calculaYZ(sol);
+	filho->calculateOEC(sol,inst);
+		
+	delete S;
+	
+	return filho;
+}
+
+//Calculo da Diversidade
+double calculaDiversidade(vector<Individual> &populacao, int nIndividuals) 
+{
+	if ( (nIndividuals == -1) || (nIndividuals > (int)populacao.size()) )
+		nIndividuals = populacao.size();
+	
+	if (nIndividuals>1){
+		double distancia=0;
+		int n=0;
+		for (int i = 0; i < nIndividuals-1; i++) 
+		{
+			for (int j = i+1; j<nIndividuals; j++) 
+			{
+				distancia += populacao[i].calculaDistancia(populacao[j]);
+				n++;
+			}
+		}
+		return distancia/n;
+	} else
+	{
+		return 0;
+	}
+}
+
+void buscaLocalOEC(Instance& inst, Individual indiv, Solution& sol, vector<Individual> &violados, 
+			vector<vector< bool > >& conjuntoSbuscados, int level, int tabu, double previousBestGap) {
+	/*if (conjuntoSbuscado(conjuntoSbuscados, indiv.S.pertenceS, true)) 
+	{
+		return;
+	}*/
+
+	bool hasImprovement = true;
+
+	vector <int> elementos(inst.n);
+	for (int i=0;i<inst.n;i++) {
+		elementos[i] = i+1;
+	}
+						
+	while (hasImprovement)
+	{	
+		double bestImprov = -0.001; 
+		int i_melhor = -1;
+		std::random_shuffle (elementos.begin(), elementos.end());
+		for (int ii = 0; ii < (int)elementos.size(); ii++) 
+		{
+			int i = elementos[ii]; 
+			if (indiv.S.pertenceS[i]) 
+			{
+				if (indiv.S.tamanho>1) 
+				{ //se S tiver mais que 1 elemento						
+					double improv = indiv.evaluateRemovalOEC(sol, inst, i);
+
+					if (improv < bestImprov - 0.001)
+					{
+						bestImprov = improv; 
+						i_melhor = i;
+						double bestGap = indiv.gap() + improv;
+
+						if (bestGap < gapRelevante) 
+						{		
+							Individual violatedIndiv = indiv;
+							violatedIndiv.S.excluiElemento(i);
+							violatedIndiv.S.calculaYZ_removal(sol, i);
+							violatedIndiv.calculateOEC(sol,inst);
+							verifica_novo_Individual_completo(violados, violatedIndiv);
+						}
+					}
+				}
+			} 
+			else 
+			{ //se nao pertencer ao conjunto S
+				bool conexo = true;
+				if (buscaConexa)
+				{
+					conexo = false;
+					for (int k = 0; k < (int)sol.entra[i].size(); k++)
+					{
+						if (indiv.S.pertenceS[sol.arcs[sol.entra[i][k]].i])
+						{
+							conexo = true;
+							break;
+						}
+					}
+					if (!conexo)
+					{
+						for (int k = 0; k < (int)sol.sai[i].size(); k++)
+						{
+							if (indiv.S.pertenceS[sol.arcs[sol.sai[i][k]].j])
+							{
+								conexo = true;
+								break;
+							}
+						}
+					}
+				} 
+
+				if (conexo) 
+				{			
+					double improv = indiv.evaluateInsertionOEC(sol, inst, i);
+
+					if (improv < bestImprov - 0.001)
+					{
+						bestImprov = improv; 
+						i_melhor = i;
+						double bestGap = indiv.gap() + improv;
+					
+						if (bestGap < gapRelevante) 
+						{		
+							Individual violatedIndiv = indiv;
+							violatedIndiv.S.incluiElemento(i);
+							violatedIndiv.S.calculaYZ_insertion(sol, i);
+							violatedIndiv.calculateOEC(sol,inst);
+							verifica_novo_Individual_completo(violados, violatedIndiv);
+				
+						}
+					}					
+				}
+			}	
+			if (i_melhor != -1) break;
+		}
+
+		if (i_melhor != -1)
+		{
+			if (indiv.S.pertenceS[i_melhor])
+			{
+				indiv.S.excluiElemento(i_melhor);
+				indiv.S.calculaYZ_removal(sol, i_melhor);
+			}
+			else
+			{
+				indiv.S.incluiElemento(i_melhor);
+				indiv.S.calculaYZ_insertion(sol, i_melhor);
+			}
+			indiv.calculateOEC(sol,inst);
+		}
+		else
+		{
+			hasImprovement = false;
+		}
+	}
+}
+
+bool conjuntoSbuscado(vector<vector<bool> > &conjuntoSbuscados, vector<bool> &conjuntoSbool, bool registrar)
+{
+	for (int i = 0; i < (int)conjuntoSbuscados.size(); i++)
+	{
+		bool diff = false;
+		for (int j = 0; j < (int)conjuntoSbool.size(); j++)
+		{
+			if (conjuntoSbuscados[i][j] != conjuntoSbool[j])
+			{
+				diff = true;
+				break;
+			}
+		}
+		if (!diff)
+		{
+			return true;
+		}
+	}
+
+	if (registrar)
+		conjuntoSbuscados.push_back(conjuntoSbool);
+
+	return false;
+}
+
+//adiciona o novo Individual ao vetor de Individuals criados, caso ele ja não existe no mesmo
+//evita a presenca de duplicatas no vetor de Individuals criados
+ bool insertUniqueIndividual(vector<Individual> &population, Individual &newIndividual) 
+{
+	 for (int i = 0; i < (int)population.size(); i++) 
+	 {
+		 if (population[i].conjuntoSigual(newIndividual)) 
+		 {
+			return false;
+		 }
+	 }
+	 population.push_back(newIndividual);
+	 return true;
+ }
+
+bool verifica_novo_Individual(vector<Individual> &gerados, string &impressaoS) 
+ {
+	 for (int i = 0; i < (int)gerados.size(); i++) {
+		 if (gerados[i].assinatura == impressaoS) {
+			return false;
+		 }
+	 }
+	 return true;
+ }
+
+bool verifica_novo_Individual_completo(vector<Individual> &gerados, Individual &novo_Individual)
+{
+	 //novo_Individual.buscaAssinatura();
+	 for (int i = 0; i < (int)gerados.size(); i++) {
+		 if (gerados[i] == novo_Individual) {
+			return false;
+		 }
+	 }
+	 gerados.push_back(Individual(novo_Individual));
+	 return true;
+ }
+
+//sets t, lhs, rhs by exploring S.pTotal, S.Y_vec and S.Z_vec	
+void Individual::calculateOEC(Solution& sol, Instance&  inst) 
+{
+	int melhor_t = 1;
+	double melhor_lhs = 0;
+	double melhor_rhs = 0;
+
+	
+	#ifndef REVERSE_OEC
+	CalculateOEC(S.pTotal, S.Y_vec, S.Z_vec, sol, inst,
+				  melhor_t,  melhor_lhs,  melhor_rhs);
+#else
+	CalculateRevOEC(S.pTotal, S.Y_vec, S.Z_vec, sol, inst,
+				  melhor_t,  melhor_lhs,  melhor_rhs);
+#endif
+
+	t = melhor_t;
+	corte.lhs = melhor_lhs;
+	corte.rhs = melhor_rhs;
+}
+
+//sets t, lhs, rhs by exploring S.pTotal, S.Y_vec and S.Z_vec	
+double Individual::evaluateInsertionOEC(Solution& sol, Instance&  inst, int newJob) 
+{
+	int melhor_t = 1;
+	double melhor_lhs = 0;
+	double melhor_rhs = 0;
+
+	int new_pTotal = S.pTotal + inst.p[newJob];
+	vector<double> new_Y_vec = S.Y_vec;
+	vector<double> new_Z_vec = S.Z_vec;
+
+	//for all variables representing flow going into newJob
+	for (int j = 0; j < (int)sol.entra[newJob].size(); j++) 
+	{
+		ArcVariable& var = sol.arcs[sol.entra[newJob][j]]; 
+		if (!S.pertenceS[var.i]) //Delta-
+		{  
+			new_Z_vec[var.t] += var.value;
+		}
+		else //was in Delta+
+		{
+			new_Y_vec[var.t] -= var.value;
+		}
+	}
+
+	//for all variables representing flow going out of newJob
+	for (int j = 0; j < (int)sol.sai[newJob].size(); j++)
+	{
+		ArcVariable& var = sol.arcs[sol.sai[newJob][j]]; 
+		if (!S.pertenceS[var.j])  //Delta+
+		{  
+			new_Y_vec[var.t] += var.value;
+		}
+		else //was in Delta-
+		{
+			new_Z_vec[var.t] -= var.value;
+		}
+	}
+
+	#ifndef REVERSE_OEC
+	CalculateOEC(new_pTotal, new_Y_vec, new_Z_vec, sol, inst,
+				  melhor_t,  melhor_lhs,  melhor_rhs);
+	#else
+		CalculateRevOEC(new_pTotal, new_Y_vec, new_Z_vec, sol, inst,
+					  melhor_t,  melhor_lhs,  melhor_rhs);
+	#endif
+	
+	//violation difference (new_violation - old_violation)
+	//if negative, movement violates more
+	return (melhor_lhs - melhor_rhs) - (corte.lhs-corte.rhs);
+}
+
+//sets t, lhs, rhs by exploring S.pTotal, S.Y_vec and S.Z_vec	
+double Individual::evaluateRemovalOEC(Solution& sol, Instance&  inst, int oldJob) 
+{
+	int melhor_t = 1;
+	double melhor_lhs = 0;
+	double melhor_rhs = 0;
+
+	int new_pTotal = S.pTotal - inst.p[oldJob];
+	vector<double> new_Y_vec = S.Y_vec;
+	vector<double> new_Z_vec = S.Z_vec;
+
+	//for all variables representing flow going into newJob
+		for (int j = 0; j < (int)sol.entra[oldJob].size(); j++) 
+		{
+			ArcVariable& var = sol.arcs[sol.entra[oldJob][j]]; 
+			if (!S.pertenceS[var.i]) //Delta-
+			{  
+				new_Z_vec[var.t] -= var.value;
+			}
+			else //was in Delta+
+			{
+				new_Y_vec[var.t] += var.value;
+			}
+		}
+
+		//for all variables representing flow going out of newJob
+		for (int j = 0; j < (int)sol.sai[oldJob].size(); j++)
+		{
+			ArcVariable& var = sol.arcs[sol.sai[oldJob][j]]; 
+			if (!S.pertenceS[var.j])  //Delta+
+			{  
+				new_Y_vec[var.t] -= var.value;
+			}
+			else //was in Delta-
+			{
+				new_Z_vec[var.t] += var.value;
+			}
+		}
+
+	#ifndef REVERSE_OEC
+	CalculateOEC(new_pTotal, new_Y_vec, new_Z_vec, sol, inst,
+					melhor_t,  melhor_lhs,  melhor_rhs);
+	#else
+	CalculateRevOEC(new_pTotal, new_Y_vec, new_Z_vec, sol, inst,
+					melhor_t,  melhor_lhs,  melhor_rhs);
+	#endif
+	
+	//violation difference (new_violation - old_violation)
+	//if negative, movement violates more
+	return (melhor_lhs - melhor_rhs) - (corte.lhs-corte.rhs);
+}
+
+void CalculateOEC(int pTotal, vector<double>& Y_vec, vector<double>& Z_vec, Solution& sol, Instance&  inst,
+				  int& t, double& lhs, double& rhs) 
+{			
+	rhs = 2; 
+	int tempo = 1;
+	
+	double newlhs = 0;
+
+	int last_t1 = 0;
+	int last_tz = 0;
+		
+	int t1 = pTotal - tempo - (inst.m-2)*(tempo-1);
+	if (t1 > sol.T) 
+	{
+		t1 = sol.T;
+	}
+	int t2 = sol.T - pTotal + inst.m*(tempo-1)+1;
+	int tz = t2 > t1 ? t2 : t1;
+
+	//Z
+	for (int q = tz; q <= sol.T; q++)
+		newlhs -= Z_vec[q];
+
+	//Y
+	for (int q = tempo; q <= t1; q++)
+		newlhs += Y_vec[q];
+		
+	for (int q = t1+1; q <= sol.T; q++)
+		newlhs += 2*Y_vec[q];
+		
+	t = tempo;
+	lhs = newlhs;	
+
+	last_t1 = t1;
+	last_tz = tz;
+	
+	for (tempo = 2; tempo <= (pTotal-1)/inst.m +1; tempo++)
+	{
+		int t1 = pTotal - tempo - (inst.m-2)*(tempo-1);
+		if (t1 > sol.T) 
+			t1 = sol.T;
+		int t2 = sol.T - pTotal + inst.m*(tempo-1) + 1;
+		int tz = t2 > t1 ? t2 : t1;
+
+		//Z
+		if (tz > last_tz)
+		{
+			for (int t = last_tz; t < tz; t++)				
+				newlhs += Z_vec[t];				
+		}
+		if (tz < last_tz)
+		{
+			for (int t = tz; t < last_tz; t++)
+				newlhs -= Z_vec[t];
+		}
+			
+		//Y
+		newlhs -= Y_vec[tempo-1];
+			
+		for (int q = last_t1; q > t1; q--)
+		{
+			newlhs += Y_vec[q];
+		}
+
+		// <= used instead of < to always have last t
+		if (newlhs <= lhs)
+		{
+			lhs = newlhs;
+			t = tempo;
+		}
+			
+		last_t1 = t1;
+		last_tz = tz;
+	}
+}
+
+string imprimeS(vector<int> S) 
+{	
+	int i;
+	string conjunto;
+	int n = S.size();
+
+	std::sort(S.begin(),S.end());
+
+	conjunto = "";
+
+	for (i=0;i<n;i++){
+		conjunto = conjunto + "[" + to_string(S[i]) + "]";
+	}
+
+	return conjunto;
 }

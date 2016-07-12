@@ -43,6 +43,7 @@ using std::sort;
 #define TRICLIQUECUT_SEP
 //#define GENERIC_CLIQUECUT_SEP
 
+#define INTEGRATED_OEC_SEP
 #define OEC_SEP
 
 //#define PRINT_TEX
@@ -809,15 +810,13 @@ int BBNode::GenerateCuts(int cutRound,  CPUTimer& t, double currLB)
    outputTable.appendHeader("Time");
    outputTable.appendHeader("Diversity");
 
-#ifdef ORIG_ECCSEP
-   // write the fractional arc-time solution to a file
-   
-
+#ifdef ORIG_ECCSEP   
    if ( (level == 0) || (inst->jobs() <= MaxSizeNonRootRHECCCuts) )
    {
+	   // write the fractional arc-time solution to a file
 	   do
 	   {
-		   char fname[100];
+		 char fname[100];
 
 		 //std::cout << instName << endl;
 
@@ -1255,6 +1254,7 @@ int BBNode::GenerateCuts(int cutRound,  CPUTimer& t, double currLB)
    outputTable.appendField(diversidade);
 #endif //GENETIC_ECC_s_SEP
       
+
 #ifdef OEC_SEP
    do
    {
@@ -1282,19 +1282,26 @@ int BBNode::GenerateCuts(int cutRound,  CPUTimer& t, double currLB)
       fclose(f);
       
       // call the genetic ECC separator
+#ifndef INTEGRATED_OEC_SEP
       char cmd[200];
-	  	#ifdef WIN32
+	  #ifdef WIN32
       sprintf(cmd, "OEC-Sep\\oecsep %s %s %d >> sep.txt", inst->getFileName(), fname, inst->machines());
-	#else
+	  #else
       sprintf(cmd, "OEC-Sep/oecsep %s %s %d >> sep.txt", inst->getFileName(), fname, inst->machines());
-	#endif
+	  #endif
       fprintf(stderr, "Running %s...\nOECsG = ", cmd);
       tEcc.start();
       system(cmd);
       tEcc.stop();
+#else
+      tEcc.start();      
+	  status = SeparateOECbyHeuristic(cutGenPointer,&sol,&cutList,MaxSepCutsPerRound,problemType,2);
+      tEcc.stop();	 
+#endif
  
-      // retrieve the cuts from the file
-	  	#ifdef WIN32
+    // retrieve the cuts from the file
+#ifndef INTEGRATED_OEC_SEP
+	#ifdef WIN32
       sprintf(fname, "Cuts\\%s-lpSol%d_%d_oec_cut.txt", instName.c_str(), nodeCount - 1, cutRound);
 	#else
       sprintf(fname, "Cuts/%s-lpSol%d_%d_oec_cut.txt", instName.c_str(), nodeCount - 1, cutRound);
@@ -1324,7 +1331,8 @@ int BBNode::GenerateCuts(int cutRound,  CPUTimer& t, double currLB)
      t.stop();
      t.increaseCPUTotalSecs( sepDuration );
      t.start();
-      fclose(f);
+     fclose(f);
+#endif
    }
    while (false);
 
@@ -1333,6 +1341,8 @@ int BBNode::GenerateCuts(int cutRound,  CPUTimer& t, double currLB)
    bestViol = 0.0;
    for (int c = 0; c < cutList.numCuts; c++)
    {
+	 // fprintf(stderr,"OEC(%d) viol: %lg\n",
+		//  c, cutList.cuts[c].violation);     
       avgViol += cutList.cuts[c].violation / double(cutList.numCuts);
       if (bestViol < cutList.cuts[c].violation)
          bestViol = cutList.cuts[c].violation;
