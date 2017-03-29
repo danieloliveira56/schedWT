@@ -5,7 +5,7 @@
 #include<map>
 #include<vector>
 #include<sstream>
-#include "OECinstance.h"
+#include "OECInstance.h"
 #include "OECSolution.h"
 
 using namespace std;
