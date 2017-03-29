@@ -188,7 +188,7 @@ int main( int argc, char **argv )
    if (int(ceil(lb)) >= int(ub)) remainArcs = 0;
 
    //inserido por Daniel em 06-06-2015 - imprime a solução inteira encontrada
-   //root->write_sol("int.txt");
+   root->write_sol("int.txt");
 
    // print the statistics
    fprintf( stderr,"Successfully executed.\n");

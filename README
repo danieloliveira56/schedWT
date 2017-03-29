@@ -1,0 +1,28 @@
+REQUIRED SOFTWARE:
+CPLEX
+COIN-OSI
+
+INSTALLATION STEPS:
+1. Install CPLEX
+2. Install COIN-OSI configuring it to use CPLEX (see https://projects.coin-or.org/BuildTools/wiki/user-configure)
+3. unzip the source code from the file "BCP-sched-MPC.zip"
+4. Adjust the references to the CPLEX and the COIN-OSI in the Makefile (variables "CPXLDIR", "CPXIDIR", and "OSIDIR")
+5. Execute the "make" command
+6. unzip the instances from the instance files "Orlib_inst.zip", "Souayah_inst.zip" and "Tanaka_inst.zip"
+7. Optionally run the heuristic to obtain an upper bound using the shell command "./SSTBH <instance filename> <number of machines> <instance number>"
+8. Run the desired version of the Branch-Cut-and-Price using the shell command "./swtLP-<version suffix> <instance filename> <upper bound>" (the number of machines is obtained from the instance filename)
+9. If the CPLEX Branch-and-cut can be used to finish the instance resolution, the CPLEX commands to do so will be printed by the solver in the standard error output
+
+BRANCH-CUT-AND-PRICE VERSIONS:
+swtLP-BCP: runs the complete BCP but also generates the lp file after the root node is finished to continue the instance resolution using the CPLEX Branch-and-cut.
+
+swtLP-Root: runs only the BCP root node and generates the lp file to continue the instance resolution using the CPLEX Branch-and-cut.
+
+swtLP-1LP-A: runs only the first LP of the BCP without variable fixing and without stabilization.
+
+swtLP-1LP-B: runs only the first LP of the BCP without variable fixing.
+
+swtLP-1LP-C: runs only the first LP of the BCP without stabilization.
+
+swtLP-1LP-D: runs only the first LP of the BCP.
+

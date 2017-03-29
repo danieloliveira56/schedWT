@@ -1641,9 +1641,9 @@ bool CutGenerator::genSingleOECCut( CutList* cuts, int t, int m,
 
 	//Z
 	int tz1 = demand - t;
-	int tz2 = instance_.capacity - demand + 2*t - 1;
+	int tz2 = instance_.capacity - demand + (m-2)*(t-1) + 1;
 	int tz = tz1 > tz2 ? tz1 : tz2; 
-	for (d = tz; d < instance_.capacity; d++ )
+	for (d = tz; d < instance_.capacity; d++)
 		auxdata->outcapcoeff[d] = -1.0;
 	
 	// fill the cut fields
@@ -1656,6 +1656,7 @@ bool CutGenerator::genSingleOECCut( CutList* cuts, int t, int m,
 	cuts->cuts[cuts->numCuts].CopyData = ExtCC_CopyData;
 	cuts->cuts[cuts->numCuts].DestroyData = ExtCC_DestroyData;
 	sprintf(cuts->cuts[cuts->numCuts].templabel, "HECC" );
+
 
    // Store the cut if violated
 	if ( isViolated(&cuts->cuts[cuts->numCuts], minViolation) )
